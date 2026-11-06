@@ -6,7 +6,7 @@ Genie Code loads a skill from `.assistant/skills/<skill-name>/SKILL.md`, in your
 
 No extra packages are usually needed. IQ scoring is built into the skill (adapted from the [Genie Workbench](https://github.com/databricks-solutions/databricks-genie-workbench) IQ Scan), and benchmarks run through the native Genie benchmark API, with a chat-mode fallback.
 
-> **Disclaimer:** this is a field-built pilot, not a supported Databricks product. It is provided as is, without official support or warranty; see [LICENSE](./LICENSE.md) and [NOTICE](./NOTICE.md). Test on a copy of your agent first (Mode C).
+> **Disclaimer:** this is a field-built pilot, not a supported Databricks product. It is provided as is, without official support or warranty; see [NOTICE](./NOTICE.md). Test on a copy of your agent first (Mode C).
 
 ## Install
 

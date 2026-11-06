@@ -4,7 +4,7 @@ This is a field-built pilot, not a supported Databricks product. Databricks does
 
 ## Attribution
 
-The IQ scoring in `SKILL.md` (Appendix A and the `iq_score` and `sql_in_prose_lines` helpers in Appendix H) is adapted from the Genie Workbench IQ Scan, `genie_space_optimizer/iq_scan/scoring.py` in https://github.com/databricks-solutions/databricks-genie-workbench, licensed under the DB license (see LICENSE.md).
+The IQ scoring in `SKILL.md` (Appendix A and the `iq_score` and `sql_in_prose_lines` helpers in Appendix H) is adapted from the Genie Workbench IQ Scan, `genie_space_optimizer/iq_scan/scoring.py` in https://github.com/databricks-solutions/databricks-genie-workbench, licensed under the DB license (https://github.com/databricks-solutions/databricks-genie-workbench/blob/main/LICENSE.md).
 
 Changes: the scoring logic was rewritten as standalone Python functions that read a Genie Agent's config and Unity Catalog metadata through the Databricks SDK, so no package install is needed. The 12 checks and their thresholds follow the Workbench rules.
 
