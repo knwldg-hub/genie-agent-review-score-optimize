@@ -2,23 +2,17 @@
 
 A Genie Code skill that reviews, scores and optimizes an existing Genie Agent (formerly Genie Space). The skill file is [`SKILL.md`](./SKILL.md).
 
-In the Databricks workspace, Genie Code only loads a skill from `.assistant/skills/<skill-name>/SKILL.md` in your user folder. The install steps below save the file under that name.
+Genie Code loads a skill from `.assistant/skills/<skill-name>/SKILL.md`, in your user folder (user skill) or in the workspace root (workspace skill). The install steps below put the file there.
 
-No extra packages are needed. IQ scoring is built into the skill (ported from the Genie Workbench IQ Scan), and benchmarks run through the native Genie benchmark API, with a chat-mode fallback.
+No extra packages are usually needed. IQ scoring is built into the skill (adapted from the [Genie Workbench](https://github.com/databricks-solutions/databricks-genie-workbench) IQ Scan), and benchmarks run through the native Genie benchmark API, with a chat-mode fallback.
+
+> **Disclaimer:** this is a field-built pilot, not a supported Databricks product. It is provided as is, without official support or warranty; see [LICENSE](./LICENSE.md) and [NOTICE](./NOTICE.md). Test on a copy of your agent first (Mode C).
 
 ## Install
 
-`SKILL.md` is at the root of this repo, so cloning the repo as a Git folder inside a skills folder installs the skill directly. Nothing to copy, and updating is just **Pull**. ([How Genie Code skills work](https://docs.databricks.com/aws/en/genie-code/skills/))
+`SKILL.md` is at the root of this repo, so cloning the repo as a Git folder inside a skills folder installs the skill directly. Nothing to copy, and updating is just **Pull**. ([How Genie Code skills work](https://docs.databricks.com/gcp/en/genie-code/skills/))
 
-### Option 1: for the whole workspace (admin, recommended for teams)
-
-1. As a workspace admin, go to **Workspace → Workspace** and open the `.assistant/skills` folder (create `.assistant` and `skills` if they don't exist; folders starting with a dot may be hidden).
-2. In `skills`, choose **Create → Git folder**, paste `https://github.com/knwldg-hub/genie-agent-review-score-optimize.git`, and click **Create**. Keep the default folder name.
-3. Make sure users can read the folder.
-
-Everyone in the workspace gets the skill in their next Genie Code chat. To update everyone: open the Git folder and click **Pull**.
-
-### Option 2: for yourself
+### Option 1: for yourself (recommended)
 
 1. In Genie Code, click **Settings → Open skills folder**. This opens `/Users/<you>/.assistant/skills/`, creating it if needed.
 2. In that folder, choose **Create → Git folder**, paste `https://github.com/knwldg-hub/genie-agent-review-score-optimize.git`, and click **Create**. Keep the default folder name.
@@ -27,6 +21,16 @@ Everyone in the workspace gets the skill in their next Genie Code chat. To updat
 To update: open the Git folder and click **Pull**, then start a new chat.
 
 If a version of the skill already exists at `.assistant/skills/genie-agent-review-score-optimize`, delete that folder first.
+
+### Option 2: for the whole workspace (admin)
+
+`Workspace/.assistant/skills/` is the documented location for workspace skills, which are available to everyone in the workspace ([docs](https://docs.databricks.com/gcp/en/genie-code/skills/)). Use it once the per-user install has worked for you.
+
+1. As a workspace admin, go to **Workspace → Workspace** and open the `.assistant/skills` folder (create `.assistant` and `skills` if they don't exist; folders starting with a dot may be hidden).
+2. In `skills`, choose **Create → Git folder**, paste `https://github.com/knwldg-hub/genie-agent-review-score-optimize.git`, and click **Create**. Keep the default folder name.
+3. Make sure users can read the folder.
+
+Users get the skill in their next Genie Code chat. To update everyone: open the Git folder and click **Pull**.
 
 ### Option 3: copy the file (if you can't create a Git folder)
 
@@ -76,8 +80,12 @@ Other useful prompts during a session:
 - Genie Code enabled in the workspace
 - CAN EDIT on the Genie Agent being reviewed. CAN VIEW is enough for the quick scan and a review without changes.
 - CAN USE on the agent's SQL warehouse
-- A recent Databricks SDK with the Genie benchmark API (`genie_create_eval_run`). Tested on serverless with databricks-sdk 0.122.0. On older SDKs the skill falls back to a chat-mode harness.
+- A recent Databricks SDK with the Genie benchmark API (`genie_create_eval_run`). Tested on serverless with databricks-sdk 0.122.0. The skill checks this at setup and offers `%pip install -U databricks-sdk` if it's missing; otherwise it falls back to a less reliable chat-mode harness.
 - To apply Unity Catalog description fixes: MODIFY on those tables. Otherwise the skill writes a SQL script for the table owner.
+
+## Cost
+
+The quick scan uses no warehouse compute. Benchmarks do: one run of all questions, plus 2 stability re-runs of each failing question, so the baseline can use up to about 3× one benchmark run when many questions fail. Each approved change adds a targeted re-run of the affected questions, and the final re-score adds one full run. The skill tells you before each run.
 
 ## Testing tip
 
@@ -93,7 +101,7 @@ The skill file keeps only the current instructions; changes are listed here.
 
 ### v0.5
 
-Adopts the useful parts of the field-kit skills `automated_iq_scorer` and `benchmark_eval_harness`. The headline score stays the Genie Workbench IQ score, so it matches what customers see in Workbench.
+The headline score stays the Genie Workbench IQ score, so it matches what customers see in Workbench.
 
 - Benchmark quality in the quick scan: expected SQL using `CURRENT_DATE()` (results drift daily) and question-type coverage (time, ranking, ratio, period comparison, segmentation, trailing window)
 - Optional guardrail tests: 5 risky prompts (personal data, delete, prompt injection, out of scope, ambiguous); pass = no SQL generated
@@ -101,10 +109,9 @@ Adopts the useful parts of the field-kit skills `automated_iq_scorer` and `bench
 - Regression rules: alert on a drop of 5+ points or 3+ regressed questions; flaky questions ignored
 - Readiness checklist: accuracy ≥ 85%, critical questions pass, guardrails pass
 - Optional MLflow history of scores (no data)
-- Field-kit checks (metric views, hidden columns, stricter description thresholds) shown as advice only
+- Advisory checks (metric views, hidden columns, stricter description thresholds) shown as advice only
 - Benchmark drafting with 2–4 phrasings per concept and dates anchored on the latest loaded date
-
-Not adopted: the composite trust score (inputs undefined) and rules that fail valid agents (mandatory metric view, 5+ hidden columns, "GRAIN" in every comment, `GROUP BY ALL`).
+- Setup checks the SDK and offers an upgrade if the native benchmark API is missing
 
 ### v0.4
 

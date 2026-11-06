@@ -5,7 +5,7 @@ description: Review, score and optimize an existing Genie Agent (formerly Genie 
 
 # Genie Agent Review, Score & Optimize
 
-Version 0.5 (pilot). Works with Genie Agents on any Databricks workspace.
+Version 0.5 (pilot). Works with Genie Agents on any Databricks workspace. Field-built pilot, not a supported Databricks product; see the repo's LICENSE.md and NOTICE.md.
 
 You are guiding the user through an end-to-end review of one Genie Agent. Work in a notebook as the current user. Go one step at a time. At every ⏸ checkpoint, stop and wait for the user's answer.
 
@@ -31,9 +31,18 @@ Step 0 Setup → 1 Pick agent → 1.5 Quick scan (read-only; can stop here) → 
 
 ### Step 0: Setup
 
-Make sure a notebook is attached to serverless compute or a cluster. No package installs are needed.
+Make sure a notebook is attached to serverless compute or a cluster. No package installs are needed unless the SDK check below says so.
 
 Copy the code in Appendix H into one notebook cell exactly as written and run it. It defines `w`, `ME`, `REVIEW_ROOT` and the helper functions used in every step. Tell the user it's a read-only setup cell. If a helper fails, show the error and use Appendix G to work out the field, rather than guessing.
+
+Then run `sdk = sdk_check()`. If `sdk["eval_api"]` is False, tell the user the installed databricks-sdk is too old for the native benchmark API (tested on 0.122.0), and that without it benchmarks fall back to the less reliable chat-mode harness. Offer to run, in a new cell:
+
+```python
+%pip install -U databricks-sdk
+dbutils.library.restartPython()
+```
+
+The restart clears all variables, so afterwards re-run the Appendix H cell and `sdk_check()`. If the user declines, or the install fails (for example no access to PyPI), continue and label every benchmark result "chat-mode harness (approximation)".
 
 ### Step 1: Pick the agent ⏸
 
@@ -57,7 +66,7 @@ Tell the user first: read-only, config and Unity Catalog metadata only, no wareh
 ```python
 qs = quick_scan(space, cfg, uc)
 bq = benchmark_quality(cfg)        # relative dates in expected SQL, question-type coverage (heuristic)
-fk = fieldkit_advisory(cfg, uc)    # advice only; never changes the IQ score
+adv = advisory_checks(cfg, uc)     # advice only; never changes the IQ score
 ```
 
 Add the config-only deep-review checks (D1, D2, D5, D8, D9, D10, D12, D13) to the same groups; the rest wait for the full score. Show, in plain language with an evidence count per line:
@@ -79,9 +88,9 @@ Add the config-only deep-review checks (D1, D2, D5, D8, D9, D10, D12, D13) to th
 - ➖ **Not applicable**: for example join specs on a single-source agent
 - ❓ **Not measured yet**: accuracy (IQ 11–12), example SQL validity (D3), SQL logic (D4, D6), guardrail behavior
 
-Add one line **Field-kit advisory (doesn't change the score)** with each `fk` item as ✅ or ⚠️. List relative-date benchmarks under ⚠️ (their expected answers drift daily). Give up to 3 likely quick wins, then ask:
+Add one line **Advisory checks (don't change the score)** with each `adv` item as ✅ or ⚠️. List relative-date benchmarks under ⚠️ (their expected answers drift daily). Give up to 3 likely quick wins, then ask:
 
-*"Next step? (a) run benchmarks for a full score: n questions, about a few minutes, uses warehouse compute and shows in the Benchmarks tab history; (b) see recommendations from the config alone; (c) stop here and save this quick-scan report."*
+*"Next step? (a) run benchmarks for a full score: n questions, about a few minutes, shows in the Benchmarks tab history. It uses warehouse compute: one run of all n questions, plus 2 re-runs of each failing question, so up to about 3× one run if many fail; (b) see recommendations from the config alone; (c) stop here and save this quick-scan report."*
 
 - **(a)**: continue to step 2. Recommend running on a copy (Mode C) if the user doesn't own the agent.
 - **(b)**: go to step 6 using the quick-scan evidence only. Label it "config-only, accuracy not measured". Before the first change, do steps 2 and 3 (apply mode and backup) and offer a baseline benchmark run, so the change can be measured.
@@ -168,7 +177,7 @@ Benchmarks first (the IQ score needs the accuracy); reuse the quick-scan results
 
 **4a. Benchmarks (Appendix C)**
 
-Tell the user the question count, and that it uses warehouse compute and shows in the Benchmarks tab history.
+Tell the user the question count, that it shows in the Benchmarks tab history, and the cost: one run of all questions plus 2 stability re-runs of each failing question, so up to about 3× one run. Each approved change later adds a targeted re-run, and step 9 adds one full run.
 
 ```python
 base = run_benchmarks(SPACE_ID)                 # native run, same engine as the Benchmarks tab
@@ -342,7 +351,7 @@ When they finish, save `{DIR}/review_report_{date}.md` with:
 - Changes made and their status (applied or PR-ready), benchmark corrections listed separately
 - Remaining recommendations, ordered
 - Readiness checklist, regressions (and any overrides), guardrail results, still-flaky questions
-- Field-kit advisory items
+- Advisory check items
 - How to roll back
 
 Share the path. For Mode C, remind them to apply the proven changes to the real agent (Mode A or B), then ask: *"Should I move the review copy to the trash?"* Only on yes, run `w.genie.trash_space(SPACE_ID)`.
@@ -358,7 +367,7 @@ For Mode B, revert the commit in their repo.
 
 ## Appendix A: IQ score rubric (12 checks)
 
-Built in (`iq_score` in Appendix H). Ported from the Genie Workbench IQ Scan (`genie_space_optimizer/iq_scan/scoring.py`), so no package install is needed and results match what the customer sees in Workbench. Descriptions count from the agent config or from Unity Catalog comments (Workbench fills blanks from Unity Catalog the same way).
+Built in (`iq_score` in Appendix H). Adapted from the Genie Workbench IQ Scan (`genie_space_optimizer/iq_scan/scoring.py` in https://github.com/databricks-solutions/databricks-genie-workbench, DB license; changed: rewritten as a standalone function over the agent config and Unity Catalog metadata), so no package install is needed and results match what the customer sees in Workbench. Descriptions count from the agent config or from Unity Catalog comments (Workbench fills blanks from Unity Catalog the same way).
 
 | # | Check | Pass when | Warning (still passes) |
 |---|---|---|---|
@@ -560,6 +569,17 @@ REVIEW_ROOT = f"/Workspace/Users/{ME}/genie_agent_reviews"
 CRITICAL, guard = [], None   # set in steps 3.5 and 4d
 
 # ---------- config ----------
+def sdk_check():
+    """Report the databricks-sdk version and whether the native Genie benchmark API exists."""
+    try:
+        from databricks.sdk.version import __version__ as ver
+    except Exception:
+        ver = "unknown"
+    ok = all(hasattr(w.genie, m) for m in ("genie_create_eval_run", "genie_get_eval_run", "genie_list_eval_runs",
+                                            "genie_list_eval_results", "genie_get_eval_result_details"))
+    print(f"databricks-sdk {ver}: native benchmark API {'available' if ok else 'NOT available'}")
+    return {"sdk_version": ver, "eval_api": ok}
+
 def get_cfg(space_id):
     """Fetch a Genie Agent and its parsed serialized config."""
     sp = w.genie.get_space(space_id, include_serialized_space=True)
@@ -626,7 +646,8 @@ def expected_sql(q):
     """Expected SQL text of a benchmark question, or ''."""
     return next((_txt(a.get("content")) for a in q.get("answer", []) if a.get("format") == "SQL"), "")
 
-# ---------- IQ score: port of Genie Workbench iq_scan/scoring.py ----------
+# ---------- IQ score: adapted from Genie Workbench iq_scan/scoring.py ----------
+# Source: https://github.com/databricks-solutions/databricks-genie-workbench (DB license). Modified: standalone port.
 _KW = re.compile(r"\b(SELECT|WHERE|JOIN|GROUP\s+BY|ORDER\s+BY|HAVING)\b", re.I)
 _ANCHORS = [re.compile(p, re.I) for p in [
     r"\bSELECT\b[^.]*?\bFROM\b",
@@ -962,8 +983,8 @@ def readiness(bench, critical_qids=(), guard=None, target=0.85):
     ]
     return {"ready": all(i["ok"] for i in items), "items": items}
 
-def fieldkit_advisory(cfg, uc=None):
-    """Advisory checks from the field-kit skills. Reported separately; never change the IQ score."""
+def advisory_checks(cfg, uc=None):
+    """Stricter optional best-practice checks. Reported separately; never change the IQ score."""
     uc = uc if uc is not None else uc_info(cfg)
     s = summarize(cfg, uc)
     t, mv = _sources(cfg)
