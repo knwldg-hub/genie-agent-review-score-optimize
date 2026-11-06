@@ -8,28 +8,37 @@ No extra packages are needed. IQ scoring is built into the skill (ported from th
 
 ## Install
 
-Pick one option. Each installs the skill for one user. Everyone who runs reviews installs it in their own folder.
+`SKILL.md` is at the root of this repo, so cloning the repo as a Git folder inside a skills folder installs the skill directly. Nothing to copy, and updating is just **Pull**. ([How Genie Code skills work](https://docs.databricks.com/aws/en/genie-code/skills/))
 
-### Option 1: Git folder (recommended)
+### Option 1: for the whole workspace (admin, recommended for teams)
 
-1. In the workspace, go to **Workspace → your user folder → Create → Git folder** and clone `https://github.com/knwldg-hub/genie-agent-review-score-optimize.git`. Keeping the Git folder lets you pull updates later.
-2. Open Genie Code and paste:
+1. As a workspace admin, go to **Workspace → Workspace** and open the `.assistant/skills` folder (create `.assistant` and `skills` if they don't exist; folders starting with a dot may be hidden).
+2. In `skills`, choose **Create → Git folder**, paste `https://github.com/knwldg-hub/genie-agent-review-score-optimize.git`, and click **Create**. Keep the default folder name.
+3. Make sure users can read the folder.
 
-> Copy the file `genie-agent-review-score-optimize/SKILL.md` from my user folder to `.assistant/skills/genie-agent-review-score-optimize/SKILL.md` in my user folder, creating the folder if needed. Show me a short summary of the file first, then confirm the skill is installed.
+Everyone in the workspace gets the skill in their next Genie Code chat. To update everyone: open the Git folder and click **Pull**.
 
-To update later: pull the Git folder, then ask Genie Code to copy the file again.
+### Option 2: for yourself
 
-Why not a raw GitHub URL? Genie Code blocks writing content fetched from the internet into its own `.assistant/skills` folder (prompt-injection protection). Copying from a Git folder in your workspace avoids that, and you can review the file in the repo first.
+1. In Genie Code, click **Settings → Open skills folder**. This opens `/Users/<you>/.assistant/skills/`, creating it if needed.
+2. In that folder, choose **Create → Git folder**, paste `https://github.com/knwldg-hub/genie-agent-review-score-optimize.git`, and click **Create**. Keep the default folder name.
+3. Start a new Genie Code chat.
 
-### Option 2: manual, in the workspace UI
+To update: open the Git folder and click **Pull**, then start a new chat.
+
+If a version of the skill already exists at `.assistant/skills/genie-agent-review-score-optimize`, delete that folder first.
+
+### Option 3: copy the file (if you can't create a Git folder)
+
+Use this only if Git folders aren't available to you. Updates mean copying again.
+
+**In the workspace UI:**
 
 1. Go to **Workspace → Users → your folder**.
 2. Create the folder `.assistant/skills/genie-agent-review-score-optimize`. Folders that start with a dot may be hidden; turn on hidden files if you don't see them.
 3. In that folder, choose **Create → File**, name it `SKILL.md`, and paste the content of [`SKILL.md`](./SKILL.md).
 
-### Option 3: Databricks CLI
-
-From a local clone of this repo:
+**With the Databricks CLI**, from a local clone of this repo:
 
 ```bash
 databricks workspace mkdirs "/Workspace/Users/YOUR_EMAIL/.assistant/skills/genie-agent-review-score-optimize"
@@ -42,7 +51,7 @@ databricks workspace import \
 
 Replace `YOUR_EMAIL` with your workspace user name.
 
-Check that it's installed: ask Genie Code "Is the genie-agent-review-score-optimize skill installed, and which version?" It should say Version 0.5.
+**Check the install:** in a new Genie Code chat, ask "Is the genie-agent-review-score-optimize skill installed, and which version?" It should say Version 0.5. If you just pulled an update and see old behavior, start a new chat or hard-refresh the browser tab.
 
 ## Run a review
 
