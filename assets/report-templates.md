@@ -6,6 +6,8 @@ Use these layouts exactly. Never put data values in them (golden rule 3).
 
 **Quick scan: <title>** · config checks x/10 passed · provisional tier <tier>
 
+Take the tier from `qs["provisional_tier"]`; never work it out yourself. If check 5 is the only failure (single-source agent), say the tier is Not Ready because of the Workbench join-spec rule, not because of a real gap.
+
 | What it has | |
 |---|---|
 | Data sources | n tables · n metric views |

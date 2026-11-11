@@ -205,7 +205,8 @@ def quick_scan(sp, cfg, uc=None):
     except Exception:
         pass
     return {"title": sp.title, "description_chars": len(sp.description or ""), "summary": s, "groups": groups,
-            "config_checks_passed": sum(c["passed"] for c in iq["checks"][:10]), "last_full_run": last}
+            "config_checks_passed": sum(c["passed"] for c in iq["checks"][:10]), "last_full_run": last,
+            "provisional_tier": "Ready to Optimize" if all(c["passed"] for c in iq["checks"][:10]) else "Not Ready"}
 
 # ---------- SQL ----------
 def run_sql(warehouse_id, sql):

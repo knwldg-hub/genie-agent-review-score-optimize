@@ -49,7 +49,7 @@ Paths are relative to this skill folder. Read each file only at the step named, 
 
 - **Metric views can sit under `data_sources.tables`.** `summarize` detects them from Unity Catalog (`table_type = METRIC_VIEW`). Never call a metric view a table.
 - **`exclude: true` on a column config means hidden from Genie**, not deleted. Count it as a hidden column.
-- **IQ check 5 (join specs) fails on single-source agents** because that's the Workbench rule. Report it as scored, but treat it as N/A for recommendations.
+- **IQ check 5 (join specs) fails on single-source agents** because that's the Workbench rule. Report it as scored, but treat it as N/A for recommendations. Because a tier above Not Ready needs checks 1–10 to pass, such an agent stays **Not Ready** (best case 11/12); say so whenever you show its tier, and take the quick-scan tier from `qs["provisional_tier"]`.
 - **`CURRENT_DATE()` in expected SQL drifts.** The expected answer changes daily, so a benchmark can start failing with no agent change. Anchor windows on the latest loaded date.
 - **Column order never decides pass or fail**, and extra columns count as a pass (`PASS_EXTRA_COLUMNS`). Neither is a reason to edit a benchmark.
 - **One question is noise.** A move of one question or less is never a real improvement or regression; Genie isn't deterministic, so always check stability before crediting a fix.
@@ -161,7 +161,7 @@ Continue with the copy's ID. Tell the user the copy's ID, and that you'll offer 
 ### Step 3: Backup
 
 ```python
-TS = datetime.datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+TS = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 DIR = f"{REVIEW_ROOT}/{SPACE_ID}"
 os.makedirs(DIR, exist_ok=True)
 with open(f"{DIR}/backup_{TS}.json", "w") as f:
