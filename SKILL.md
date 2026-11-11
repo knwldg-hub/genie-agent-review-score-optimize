@@ -78,9 +78,10 @@ SKILL_SCRIPTS = next((p for p in _cands if os.path.exists(f"{p}/genie_review_hel
 assert SKILL_SCRIPTS, "helper file not found in either skills folder"
 if SKILL_SCRIPTS not in sys.path:
     sys.path.insert(0, SKILL_SCRIPTS)
-import genie_review_helpers as grh
-importlib.reload(grh)
+_m = "genie_review_helpers"
+grh = importlib.reload(sys.modules[_m]) if _m in sys.modules else importlib.import_module(_m)
 from genie_review_helpers import *
+from genie_review_helpers import _txt, _sources, _val, _norm, _ids   # private helpers that * skips
 print("helpers", grh.HELPERS_VERSION, "from", SKILL_SCRIPTS)
 ```
 
