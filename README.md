@@ -1,8 +1,16 @@
-# genie-agent-review-score-optimize (Genie Code skill, v0.5 pilot)
+# genie-agent-review-score-optimize (Genie Code skill, v0.6 pilot)
 
 A Genie Code skill that reviews, scores and optimizes an existing Genie Agent (formerly Genie Space). The skill file is [`SKILL.md`](./SKILL.md).
 
-Genie Code loads a skill from `.assistant/skills/<skill-name>/SKILL.md`, in your user folder (user skill) or in the workspace root (workspace skill). The install steps below put the file there.
+```
+SKILL.md                        steps, golden rules, gotchas (loaded by Genie Code)
+scripts/genie_review_helpers.py helper library, imported once in Step 0
+references/                     rubrics and rules, read only at the step that needs them
+assets/report-templates.md      scorecard and report layouts
+NOTICE.md                       support and attribution
+```
+
+Genie Code loads a skill from `.assistant/skills/<skill-name>/`, in your user folder (user skill) or in the workspace root (workspace skill). The whole folder is needed, not just `SKILL.md`. The install steps below put it there.
 
 No extra packages are usually needed. IQ scoring is built into the skill (adapted from the [Genie Workbench](https://github.com/databricks-solutions/databricks-genie-workbench) IQ Scan), and benchmarks run through the native Genie benchmark API, with a chat-mode fallback.
 
@@ -32,30 +40,21 @@ If a version of the skill already exists at `.assistant/skills/genie-agent-revie
 
 Users get the skill in their next Genie Code chat. To update everyone: open the Git folder and click **Pull**.
 
-### Option 3: copy the file (if you can't create a Git folder)
+### Option 3: copy the folder (if you can't create a Git folder)
 
-Use this only if Git folders aren't available to you. Updates mean copying again.
-
-**In the workspace UI:**
-
-1. Go to **Workspace → Users → your folder**.
-2. Create the folder `.assistant/skills/genie-agent-review-score-optimize`. Folders that start with a dot may be hidden; turn on hidden files if you don't see them.
-3. In that folder, choose **Create → File**, name it `SKILL.md`, and paste the content of [`SKILL.md`](./SKILL.md).
+Use this only if Git folders aren't available to you. Updates mean copying again. Copy the whole repo folder (`SKILL.md`, `scripts/`, `references/`, `assets/`, `NOTICE.md`), not just `SKILL.md`.
 
 **With the Databricks CLI**, from a local clone of this repo:
 
 ```bash
-databricks workspace mkdirs "/Workspace/Users/YOUR_EMAIL/.assistant/skills/genie-agent-review-score-optimize"
-
-databricks workspace import \
-  "/Workspace/Users/YOUR_EMAIL/.assistant/skills/genie-agent-review-score-optimize/SKILL.md" \
-  --file ./SKILL.md \
-  --format AUTO --overwrite
+databricks workspace import-dir . \
+  "/Workspace/Users/YOUR_EMAIL/.assistant/skills/genie-agent-review-score-optimize" \
+  --overwrite
 ```
 
-Replace `YOUR_EMAIL` with your workspace user name.
+Replace `YOUR_EMAIL` with your workspace user name. In the workspace UI, recreate the same folders and files under `.assistant/skills/genie-agent-review-score-optimize` (folders that start with a dot may be hidden).
 
-**Check the install:** in a new Genie Code chat, ask "Is the genie-agent-review-score-optimize skill installed, and which version?" It should say Version 0.5. If you just pulled an update and see old behavior, start a new chat or hard-refresh the browser tab.
+**Check the install:** in a new Genie Code chat, ask "Is the genie-agent-review-score-optimize skill installed, and which version?" It should say Version 0.6. The setup cell in Step 0 also prints the helper version (0.6). If you just pulled an update and see old behavior, start a new chat or hard-refresh the browser tab.
 
 ## Run a review
 
@@ -98,6 +97,16 @@ Open an issue in this repo with the agent shape (number of tables and metric vie
 ## Version history
 
 The skill file keeps only the current instructions; changes are listed here.
+
+### v0.6
+
+Restructured to follow the [Agent Skills best practices](https://agentskills.io): no change to scoring, checks or thresholds.
+
+- `SKILL.md` cut from about 17,500 to about 6,500 tokens. The helper library moved to `scripts/genie_review_helpers.py` (imported in Step 0, code unchanged); appendices A–G moved to `references/`; scorecard and report layouts moved to `assets/`
+- Each step names the file to read and when
+- New Gotchas section
+- One stated default at each choice (for example Mode C for a first review, option (a) after the quick scan, R1 first)
+- Frontmatter adds `license`, `compatibility` and `metadata.version`
 
 ### v0.5
 
