@@ -266,13 +266,19 @@ def run_benchmarks(space_id, question_ids=None, poll_s=15, timeout_s=1800):
             "num_needs_review": sum(r["assessment"] not in ("GOOD", "BAD") for r in res),
             "accuracy": good / len(res) if res else None, "results": res}
 
-def stability_check(space_id, failing_qids, reps=2):
-    """Re-run failing questions reps times. FLAKY = passed on at least one re-run; STABLE_FAIL = failed every time."""
-    hist = {q: [] for q in failing_qids}
+def stability_check(space_id, qids, reps=2, prior=None):
+    """Re-run questions reps times and label each over ALL runs, including `prior` (the run_benchmarks result that
+    picked them, e.g. the baseline or a targeted re-run). STABLE_PASS = passed every run; STABLE_FAIL = failed every
+    run; FLAKY = mixed. Without prior, only the re-runs count."""
+    hist = {q: [] for q in qids}
+    for r in (prior or {}).get("results", []):
+        if r["benchmark_question_id"] in hist:
+            hist[r["benchmark_question_id"]].append(r["assessment"])
     for _ in range(reps):
-        for r in run_benchmarks(space_id, list(failing_qids))["results"]:
+        for r in run_benchmarks(space_id, list(qids))["results"]:
             hist.setdefault(r["benchmark_question_id"], []).append(r["assessment"])
-    return {q: ("FLAKY" if "GOOD" in h else "STABLE_FAIL") for q, h in hist.items()}
+    label = lambda h: "STABLE_PASS" if h and all(a == "GOOD" for a in h) else ("FLAKY" if "GOOD" in h else "STABLE_FAIL")
+    return {q: label(h) for q, h in hist.items()}
 
 # ---------- fallback: chat-mode harness ----------
 ROW_CAP = 5000

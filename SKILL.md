@@ -217,7 +217,7 @@ Tell the user the question count, that it shows in the Benchmarks tab history, a
 ```python
 base = run_benchmarks(SPACE_ID)                 # native run, same engine as the Benchmarks tab
 failing = [r["benchmark_question_id"] for r in base["results"] if r["assessment"] != "GOOD"]
-stab = stability_check(SPACE_ID, failing, reps=2) if failing else {}
+stab = stability_check(SPACE_ID, failing, reps=2, prior=base) if failing else {}
 ```
 
 If the eval API isn't available (older SDK, 404, permission), say so and use `chat_benchmarks(SPACE_ID, cfg, space.warehouse_id)`, labelled "chat-mode harness (approximation)".
@@ -318,7 +318,7 @@ check = verify_update(before, cfg, expected_counts_delta={})   # e.g. {"synonym_
 ```
 
 - **Verify the agent config:** `check["ok"]` must be true: counts moved only as intended and no existing IDs were lost. If not, restore the backup and report it.
-- **Targeted re-run:** re-run only the questions this change should affect plus the questions that failed before, twice: `run_benchmarks(SPACE_ID, qids)` then `stability_check`. Report each question's flip (fail→pass, pass→fail, flaky). Then compare with `rc = regression_check(prev, new, CRITICAL, stab)` on the same question IDs:
+- **Targeted re-run:** re-run only the questions this change should affect plus the questions that failed before: `new = run_benchmarks(SPACE_ID, qids)`. For every question whose result flipped, confirm with `stab_new = stability_check(SPACE_ID, flipped, reps=2, prior=new)`, which labels over all 3 runs. Count a fix only if it is `STABLE_PASS`; `FLAKY` means partly fixed (report "passed k of 3"), not fixed. Report each question's before and after. Then compare with `rc = regression_check(prev, new, CRITICAL, {**stab, **stab_new})` on the same question IDs:
   - `BLOCK` (a critical question regressed): roll back this change, unless the user overrides with a reason; record the override in the report.
   - `ALERT` (accuracy down 5 points or more, or 3 or more questions regressed): show the regressed questions and offer to roll back.
   - Flaky questions are listed separately, not counted.

@@ -9,7 +9,7 @@
 - Genie's 5,000-row result cap is a pass when the expected result is larger; otherwise above 5,000 rows only counts are compared.
 - It waits about 15 seconds between questions. Test conversations appear in the Monitoring tab under the user's name.
 
-**Stability (`stability_check`).** Genie isn't deterministic. Re-run failing questions twice; a question that passes on any re-run is `FLAKY`, otherwise `STABLE_FAIL`. Report both counts.
+**Stability (`stability_check`).** Genie isn't deterministic. Re-run the questions twice and pass the run that picked them as `prior`, so labels cover all 3 runs: `STABLE_PASS` (passed every run), `STABLE_FAIL` (failed every run), `FLAKY` (mixed). At baseline, run it on failing questions with `prior=base`. After a change, run it on flipped questions with `prior=` the targeted re-run; only `STABLE_PASS` counts as fixed. Report the counts.
 
 **Reporting rules.**
 - Accuracy = passed / scored questions, with the size of one question in points.
