@@ -489,4 +489,36 @@ def verify_update(before, after, expected_counts_delta=None):
     lost = _ids(before) - _ids(after)
     return {"ok": not bad and not lost, "unexpected_count_changes": bad, "lost_ids": len(lost)}
 
+# ---------- review state: resume after a Python restart ----------
+def _strip(o):
+    """Drop guardrail reply previews before saving state."""
+    if isinstance(o, dict): return {k: _strip(v) for k, v in o.items() if k != "reply_preview"}
+    if isinstance(o, list): return [_strip(v) for v in o]
+    return o
+
+def save_state(space_id, **kw):
+    """Merge kw into {REVIEW_ROOT}/<space_id>/state.json so a review can resume after a restart.
+    IDs, scores and question text only; never data values."""
+    p = f"{REVIEW_ROOT}/{space_id}/state.json"
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    st = json.load(open(p)) if os.path.exists(p) else {}
+    st.update(_strip(kw)); st["space_id"] = space_id
+    st["updated"] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    with open(p, "w") as f:
+        json.dump(st, f, indent=2, default=str)
+    return sorted(st)
+
+def load_state(space_id):
+    """Saved review state for an agent, or for the newest Mode C copy made from it (matched on source_id). {} if none."""
+    p = f"{REVIEW_ROOT}/{space_id}/state.json"
+    if os.path.exists(p):
+        return json.load(open(p))
+    hits = []
+    for d in (os.listdir(REVIEW_ROOT) if os.path.isdir(REVIEW_ROOT) else []):
+        q = f"{REVIEW_ROOT}/{d}/state.json"
+        if os.path.exists(q):
+            st = json.load(open(q))
+            if st.get("source_id") == space_id: hits.append(st)
+    return max(hits, key=lambda s: s.get("updated", "")) if hits else {}
+
 print("Helper library ready. SDK:", __import__("databricks.sdk").sdk.version.__version__)

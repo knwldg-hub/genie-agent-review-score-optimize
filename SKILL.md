@@ -53,7 +53,7 @@ Paths are relative to this skill folder. Read each file only at the step named, 
 - **`CURRENT_DATE()` in expected SQL drifts.** The expected answer changes daily, so a benchmark can start failing with no agent change. Anchor windows on the latest loaded date.
 - **Column order never decides pass or fail**, and extra columns count as a pass (`PASS_EXTRA_COLUMNS`). Neither is a reason to edit a benchmark.
 - **One question is noise.** A move of one question or less is never a real improvement or regression; Genie isn't deterministic, so always check stability before crediting a fix.
-- **Restarting Python clears the helpers.** After `%pip install` and `restartPython()`, re-run the Step 0 setup cell.
+- **Restarting Python clears everything.** After `%pip install` and `restartPython()`, or when serverless resets the session (variables suddenly undefined), re-run the Step 0 setup cell, then resume from the saved state (Step 0, **Resuming**). Never redo the backup or baseline because of a restart.
 - **Import the helpers; don't `exec()` file content.** Genie Code may refuse to run code read from a file with `exec`/`open`. The Step 0 import is the supported path. If the skill folder is updated mid-session, re-run the setup cell (it reloads the module).
 - **Benchmark runs and guardrail chats are visible.** They show in the agent's Benchmarks tab history and Monitoring tab under the user's name. Tell the user before running them.
 - **Trash only on an explicit yes.** `w.genie.trash_space` is called only in Step 10, only for a Mode C copy, and only after the user says yes.
@@ -61,6 +61,20 @@ Paths are relative to this skill folder. Read each file only at the step named, 
 ## Workflow
 
 Step 0 Setup → 1 Pick agent → 1.5 Quick scan (read-only; can stop here) → 2 Apply mode → 3 Backup → 3.5 Benchmark sufficiency check → 4 Baseline score (+ optional guardrail tests) → 5 Other benchmark runs → 6 Recommendations → 7 Draft one change → 8 Apply and targeted re-run → (repeat 7–8) → 9 Full re-score → 10 Next or finish
+
+**Save state after every step from 2 on**, so the review survives a Python restart. Call `save_state(SPACE_ID, step=<n>, ...)` with what the step produced:
+
+| After step | Save |
+|---|---|
+| 2 | `mode=MODE`, and for Mode C `source_id=SOURCE_ID` |
+| 3 | `ts=TS`, `backup=<backup path>` |
+| 3.5 | `critical=CRITICAL` |
+| 4 | `base=base`, `stab=stab`, `iq_base={"score": iq["score"], "tier": iq["tier"]}`, `guard=guard` |
+| 6 | `recs=[{"id", "title", "status"}...]` |
+| 8 | `changes=<list with this change appended>`, `prev=new`, `stab_changes=<merged stab_new>` |
+| 9 | `final=final`, `stab_final=stab_f`, `iq_final=...` |
+
+The state file holds IDs, scores and question text only, never data values (guardrail reply previews are dropped).
 
 ### Step 0: Setup
 
@@ -94,7 +108,21 @@ Then run `sdk = sdk_check()`. If `sdk["eval_api"]` is False, tell the user the i
 dbutils.library.restartPython()
 ```
 
-The restart clears all variables, so afterwards re-run the setup cell and `sdk_check()`. If the user declines, or the install fails (for example no access to PyPI), continue and label every benchmark result "chat-mode harness (approximation)".
+The restart clears all variables, so afterwards re-run the setup cell and `sdk_check()`.
+
+**Resuming.** If the user asks to continue a review, or variables are missing after a restart, run the setup cell and then:
+
+```python
+st = load_state("<agent-id>")   # the original ID also finds a Mode C copy
+if st:
+    SPACE_ID, MODE, TS = st["space_id"], st.get("mode"), st.get("ts")
+    SOURCE_ID, DIR = st.get("source_id"), f"{REVIEW_ROOT}/{st['space_id']}"
+    CRITICAL, stab, base, guard = st.get("critical", []), st.get("stab", {}), st.get("base"), st.get("guard")
+    prev, changes = st.get("prev") or base, st.get("changes", [])
+    space, cfg = get_cfg(SPACE_ID); uc = uc_info(cfg); summary = summarize(cfg, uc)
+```
+
+Tell the user which step the review reached (`st["step"]`, `st["updated"]`) and continue from the next step. If `st` is empty, there is nothing to resume; start at Step 1. If the user declines, or the install fails (for example no access to PyPI), continue and label every benchmark result "chat-mode harness (approximation)".
 
 ### Step 1: Pick the agent ⏸
 
@@ -167,6 +195,7 @@ os.makedirs(DIR, exist_ok=True)
 with open(f"{DIR}/backup_{TS}.json", "w") as f:
     json.dump({"title": space.title, "description": space.description,
                "warehouse_id": space.warehouse_id, "serialized_space": cfg}, f, indent=2)
+save_state(SPACE_ID, step=3, ts=TS, backup=f"{DIR}/backup_{TS}.json")
 ```
 
 Tell the user where the backup is saved.
