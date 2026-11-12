@@ -19,9 +19,9 @@ Take the tier from `qs["provisional_tier"]`; never work it out yourself. If chec
 
 - ✅ **Looks good**: passed checks, for example "All 15 configured columns are described"
 - ⚠️ **Configured, could be better**: passed with a warning, for example "Instructions are 3,795 characters; about 2,000 is recommended"
-- ❌ **Missing**: failed checks, for example "No SQL snippets (measures, filters, expressions)"
+- ❌ **Missing**: failed checks, for example "No SQL snippets (measures, filters, expressions)". Only items with evidence from a helper result, `EXPLAIN` or a benchmark run (golden rule 12); suspicions go under ❓.
 - ➖ **Not applicable**: for example join specs on a single-source agent
-- ❓ **Not measured yet**: accuracy (IQ 11–12), example SQL validity (D3), SQL logic (D4, D6), guardrail behavior
+- ❓ **Not measured yet**: accuracy (IQ 11–12), example SQL and snippet validity (D3), SQL logic (D4, D6), guardrail behavior, plus anything you suspect but haven't checked, worded as a question
 
 Then one line **Advisory checks (don't change the score)** with each item as ✅ or ⚠️, and up to 3 likely quick wins.
 

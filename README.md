@@ -54,14 +54,16 @@ databricks workspace import-dir . \
 
 Replace `YOUR_EMAIL` with your workspace user name. In the workspace UI, recreate the same folders and files under `.assistant/skills/genie-agent-review-score-optimize` (folders that start with a dot may be hidden).
 
-**Check the install:** in a new Genie Code chat, ask "Is the genie-agent-review-score-optimize skill installed, and which version?" It should say Version 0.6. The setup cell in Step 0 also prints the helper version (0.6). If you just pulled an update and see old behavior, start a new chat or hard-refresh the browser tab.
+**Check the install:** in a new Genie Code chat, ask "Is the genie-agent-review-score-optimize skill installed, and which version?" It should say Version 0.6. The setup step (Step 0) also prints the helper version (0.6). If you just pulled an update and see old behavior, start a new chat or hard-refresh the browser tab.
 
 ## Run a review
 
-Open Genie Code from a notebook, ideally a new empty one, and say one of:
+Everything happens in Genie Code; you don't need a notebook. Open Genie Code from any page (the workspace home is a good start, and you can keep the agent open in another tab) and say one of:
 
 - "Use the genie-agent-review-score-optimize skill to review Genie Agent <agent-id>."
 - "Review, score and optimize my Genie Agent <agent-id>."
+
+Genie Code runs the review code in its own serverless Python session. If you start from the Genie Agent page, where Genie Code may not be able to run Python, it moves the chat to the workspace editor and carries on. If the session resets, say "continue the Genie Agent review of <agent-id>"; progress is saved in `genie_agent_reviews/<agent-id>/state.json`.
 
 Other useful prompts during a session:
 

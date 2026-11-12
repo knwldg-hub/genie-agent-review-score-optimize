@@ -209,10 +209,16 @@ def quick_scan(sp, cfg, uc=None):
             "provisional_tier": "Ready to Optimize" if all(c["passed"] for c in iq["checks"][:10]) else "Not Ready"}
 
 # ---------- SQL ----------
-def run_sql(warehouse_id, sql):
-    """Run SQL on the agent's warehouse; return (columns, rows). Rows stay in memory only."""
+def run_sql(warehouse_id, sql, timeout_s=300):
+    """Run SQL on the agent's warehouse; return (columns, rows). Rows stay in memory only.
+    Cancels and raises after timeout_s so a queued or stuck warehouse can't hang the review."""
     r = w.statement_execution.execute_statement(warehouse_id=warehouse_id, statement=sql.strip().rstrip(";"), wait_timeout="50s")
+    t0 = time.time()
     while r.status.state in (StatementState.PENDING, StatementState.RUNNING):
+        if time.time() - t0 > timeout_s:
+            try: w.statement_execution.cancel_execution(r.statement_id)
+            except Exception: pass
+            raise RuntimeError(f"TIMEOUT after {timeout_s}s (warehouse busy or starting?)")
         time.sleep(3); r = w.statement_execution.get_statement(r.statement_id)
     if r.status.state != StatementState.SUCCEEDED:
         raise RuntimeError(f"{r.status.state}: {(r.status.error.message if r.status.error else '')[:200]}")
@@ -220,11 +226,40 @@ def run_sql(warehouse_id, sql):
     return cols, list((r.result.data_array if r.result else None) or [])
 
 def explain_ok(warehouse_id, sql):
-    """(True, '') if EXPLAIN succeeds, else (False, short error). Returns no data."""
+    """(True, '') if the SQL plans cleanly, else (False, short error). Returns no data.
+    EXPLAIN 'succeeds' even for invalid SQL and puts the error in the plan text, so the plan is checked too."""
     try:
-        run_sql(warehouse_id, "EXPLAIN " + sql.strip().rstrip(";")); return True, ""
+        _, rows = run_sql(warehouse_id, "EXPLAIN " + sql.strip().rstrip(";"))
     except Exception as e:
         return False, str(e)[:200]
+    plan = "\n".join(str(c) for r in rows for c in r if c is not None)
+    m = re.search(r"Error occurred during query planning:?\s*(.*)", plan, re.S)
+    if m or re.search(r"AnalysisException|SQLSTATE: \w+", plan):
+        return False, re.sub(r"\s+", " ", m.group(1) if m else plan)[:200]
+    return True, ""
+
+def snippets_ok(warehouse_id, cfg):
+    """EXPLAIN every SQL snippet (measure, filter, expression) against the agent's data sources.
+    A snippet passes if it EXPLAINs on any source. Returns {'checked', 'failed': [(kind, name, error)]}. No data."""
+    t, mv = _sources(cfg)
+    srcs = [".".join(f"`{p.strip('`')}`" for p in s["identifier"].split(".")) for s in (t + mv)][:12]
+    sn = cfg.get("instructions", {}).get("sql_snippets", {}) or {}
+    checked, failed = 0, []
+    for kind in ("measures", "filters", "expressions"):
+        for s in sn.get(kind, []) or []:
+            expr = _txt(s.get("sql")).strip()
+            if not expr:
+                continue
+            checked += 1
+            err = "no data source"
+            for src in srcs:
+                q = f"SELECT 1 FROM {src} WHERE {expr}" if kind == "filters" else f"SELECT {expr} FROM {src}"
+                ok, err = explain_ok(warehouse_id, q)
+                if ok:
+                    break
+            else:
+                failed.append((kind[:-1], s.get("alias") or _txt(s.get("display_name")), err[:160]))
+    return {"checked": checked, "failed": failed}
 
 # ---------- native benchmark runs ----------
 def _val(x):

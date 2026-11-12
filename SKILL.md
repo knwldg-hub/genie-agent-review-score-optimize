@@ -2,7 +2,7 @@
 name: genie-agent-review-score-optimize
 description: Review, score and optimize an existing Genie Agent (formerly Genie Space). Use when the user asks to review, audit, score, IQ-score, health-check, benchmark, tune, improve the accuracy of, or optimize a Genie Agent or Genie Space. Runs a guided loop - back up config, check benchmark coverage (and draft new benchmark questions with approval when there are too few), baseline IQ score (built in, no package install) plus deep review plus native Genie benchmark runs with stability checks, prioritized recommendations, implement approved fixes one at a time with targeted re-runs, then re-score with a like-for-like before/after comparison.
 license: See NOTICE.md in this skill folder
-compatibility: Databricks Genie Code, working in a notebook on serverless or a cluster. Needs a databricks-sdk with the Genie benchmark API (tested on 0.122.0).
+compatibility: Databricks Genie Code, from any page. Code runs in Genie Code's own Python session (serverless); no notebook needed. Needs a databricks-sdk with the Genie benchmark API (tested on 0.122.0).
 metadata:
   version: "0.6"
 ---
@@ -11,7 +11,7 @@ metadata:
 
 Version 0.6 (pilot). Works with Genie Agents on any Databricks workspace. Field-built pilot, not a supported Databricks product; see the repo's NOTICE.md.
 
-You are guiding the user through an end-to-end review of one Genie Agent. Work in a notebook as the current user. Go one step at a time. At every ⏸ checkpoint, stop and wait for the user's answer.
+You are guiding the user through an end-to-end review of one Genie Agent, entirely inside Genie Code, as the current user. Run all code with your own code-execution tool in Genie Code's Python session; the user never needs a notebook (if they have one open and ask you to use it, that's fine too). Go one step at a time. At every ⏸ checkpoint, stop and wait for the user's answer.
 
 Version history is in the README.
 
@@ -36,7 +36,7 @@ Paths are relative to this skill folder. Read each file only at the step named, 
 1. **No change without approval.** Show the exact change (diff or SQL) and get an explicit "yes" for each change before applying it.
 2. **Back up first, verify after.** Save the agent's full config before the first change. After every change, re-fetch the config and check nothing else was lost. If anything was removed unexpectedly, restore the backup immediately and tell the user.
 3. **No data values in output.** The data may contain PII. Never print result rows, sample values or example values. Show only counts, column names, data types, SQL text and pass/fail.
-4. **Show code before running it**, and run it in notebook cells.
+4. **Say what you're about to run, then run it yourself** with your code-execution tool. Never ask the user to copy code into a notebook.
 5. **Don't guess.** If an API call fails or a field is missing, explain what happened and offer a manual alternative.
 6. **Use GCP documentation links** (docs.databricks.com/gcp/...).
 7. **Preserve IDs.** When editing the config, keep existing item IDs and all fields you aren't changing. New items get a new 32-character lowercase hex ID (`new_id()`). Copy the structure of existing entries of the same type. Use the field map in `references/config-field-map.md`.
@@ -44,6 +44,7 @@ Paths are relative to this skill folder. Read each file only at the step named, 
 9. **Never carry a score forward.** Every number in a scorecard must come from a run in this session or a run the user reports. If a score was not re-run, show "not re-run", not the old value.
 10. **Text instructions are the last resort.** Before proposing a text-instruction change, say why a higher fix in `references/fix-priority.md` (Unity Catalog metadata, synonyms, entity matching, SQL snippets, example SQL) can't solve it.
 11. **Use the helper library.** Import `scripts/genie_review_helpers.py` once in Step 0 and use its functions. Don't rediscover API field names by trial and error.
+12. **Evidence before ❌.** A finding goes under ❌ only with evidence from this session: a helper result, `EXPLAIN`, or a benchmark run. Anything you suspect but haven't checked goes under ❓ *Not measured yet*, worded as a question to check, never as a fact. Don't add rules or targets that aren't in this skill's files.
 
 ## Gotchas
 
@@ -53,9 +54,12 @@ Paths are relative to this skill folder. Read each file only at the step named, 
 - **`CURRENT_DATE()` in expected SQL drifts.** The expected answer changes daily, so a benchmark can start failing with no agent change. Anchor windows on the latest loaded date.
 - **Column order never decides pass or fail**, and extra columns count as a pass (`PASS_EXTRA_COLUMNS`). Neither is a reason to edit a benchmark.
 - **One question is noise.** A move of one question or less is never a real improvement or regression; Genie isn't deterministic, so always check stability before crediting a fix.
-- **Restarting Python clears everything.** After `%pip install` and `restartPython()`, or when serverless resets the session (variables suddenly undefined), re-run the Step 0 setup cell, then resume from the saved state (Step 0, **Resuming**). Never redo the backup or baseline because of a restart.
-- **Import the helpers; don't `exec()` file content.** Genie Code may refuse to run code read from a file with `exec`/`open`. The Step 0 import is the supported path. If the skill folder is updated mid-session, re-run the setup cell (it reloads the module).
+- **Restarting Python clears everything.** After `%pip install` and `restartPython()`, or when serverless resets the session (variables suddenly undefined), re-run the Step 0 setup code, then resume from the saved state (Step 0, **Resuming**). Never redo the backup or baseline because of a restart.
+- **Import the helpers; don't `exec()` file content.** Genie Code may refuse to run code read from a file with `exec`/`open`. The Step 0 import is the supported path. If the skill folder is updated mid-session, re-run the setup code (it reloads the module).
 - **Benchmark runs and guardrail chats are visible.** They show in the agent's Benchmarks tab history and Monitoring tab under the user's name. Tell the user before running them.
+- **Synonym counts come from the agent's column configs**, which is what IQ check 3 scores (`summarize`). Synonyms defined inside a metric view's YAML are separate: you may mention them, but never report them as the check-3 count.
+- **`EXPLAIN` doesn't fail on invalid SQL.** It returns a plan that starts "Error occurred during query planning". Always use `explain_ok` / `snippets_ok`, which check the plan text; never treat a successful `EXPLAIN` statement as a pass.
+- **Some pages can't run Python.** On the Genie Agent page, Genie Code may have only SQL and agent tools. Never improvise a manual review there; hand the chat off (Step 0).
 - **Trash only on an explicit yes.** `w.genie.trash_space` is called only in Step 10, only for a Mode C copy, and only after the user says yes.
 
 ## Workflow
@@ -78,9 +82,11 @@ The state file holds IDs, scores and question text only, never data values (guar
 
 ### Step 0: Setup
 
-Make sure a notebook is attached to serverless compute or a cluster. No package installs are needed unless the SDK check below says so.
+**Where this runs.** The whole review runs inside Genie Code, in its own Python session on serverless. No notebook is needed, and the user can stay on whatever page they like; keeping the agent open in another tab is fine.
 
-Run this setup cell. It imports the helper library from this skill folder (per-user or workspace install) and defines `w`, `ME`, `REVIEW_ROOT` and the helper functions used in every step. Tell the user it's a read-only setup cell.
+First check that you have a tool that runs Python code. If you don't (for example, Genie Code opened on the Genie Agent page may only have SQL and agent tools), don't start a manual review. Say: *"This page doesn't let me run the review code. I'll continue this chat in the workspace editor, where I can. Your agent stays open in its own tab."* Then hand off: open the user's workspace home folder (or any editor page where Python runs) with the continue message *"Continue the genie-agent-review-score-optimize review of Genie Agent <agent-id> from Step 0."* (use the ID from the user's message or the page URL). If you can't navigate, give the user the link [workspace editor](/editor/folders/workspace) and ask them to say the same sentence there. No package installs are needed unless the SDK check below says so.
+
+Run this setup code. It imports the helper library from this skill folder (per-user or workspace install) and defines `w`, `ME`, `REVIEW_ROOT` and the helper functions used in every step. Tell the user it's read-only setup.
 
 ```python
 import os, sys, importlib
@@ -99,18 +105,18 @@ from genie_review_helpers import _txt, _sources, _val, _norm, _ids   # private h
 print("helpers", grh.HELPERS_VERSION, "from", SKILL_SCRIPTS)
 ```
 
-The printed version should be 0.6 (this skill's `metadata.version`); if it differs, tell the user the skill folder is out of date. If the file isn't found or the import fails, read `scripts/genie_review_helpers.py` with the skill file reader, paste it into one cell exactly as written, and run it. If a helper fails, show the error and use `references/config-field-map.md` to work out the field, rather than guessing.
+The printed version should be 0.6 (this skill's `metadata.version`); if it differs, tell the user the skill folder is out of date. If the file isn't found or the import fails, read `scripts/genie_review_helpers.py` with the skill file reader and run its content yourself as one code block, exactly as written. If a helper fails, show the error and use `references/config-field-map.md` to work out the field, rather than guessing.
 
-Then run `sdk = sdk_check()`. If `sdk["eval_api"]` is False, tell the user the installed databricks-sdk is too old for the native benchmark API (tested on 0.122.0), and that without it benchmarks fall back to the less reliable chat-mode harness. Offer to run, in a new cell:
+Then run `sdk = sdk_check()`. If `sdk["eval_api"]` is False, tell the user the installed databricks-sdk is too old for the native benchmark API (tested on 0.122.0), and that without it benchmarks fall back to the less reliable chat-mode harness. Offer to run:
 
 ```python
 %pip install -U databricks-sdk
 dbutils.library.restartPython()
 ```
 
-The restart clears all variables, so afterwards re-run the setup cell and `sdk_check()`.
+The restart clears all variables, so afterwards re-run the setup code and `sdk_check()`. If the user declines, or the install fails (for example no access to PyPI), continue and label every benchmark result "chat-mode harness (approximation)".
 
-**Resuming.** If the user asks to continue a review, or variables are missing after a restart, run the setup cell and then:
+**Resuming.** If the user asks to continue a review, or variables are missing after a restart, run the setup code and then:
 
 ```python
 st = load_state("<agent-id>")   # the original ID also finds a Mode C copy
@@ -122,7 +128,7 @@ if st:
     space, cfg = get_cfg(SPACE_ID); uc = uc_info(cfg); summary = summarize(cfg, uc)
 ```
 
-Tell the user which step the review reached (`st["step"]`, `st["updated"]`) and continue from the next step. If `st` is empty, there is nothing to resume; start at Step 1. If the user declines, or the install fails (for example no access to PyPI), continue and label every benchmark result "chat-mode harness (approximation)".
+Tell the user which step the review reached (`st["step"]`, `st["updated"]`) and continue from the next step. If `st` is empty, there is nothing to resume: start at Step 1, using the agent ID from the user's message if there is one.
 
 ### Step 1: Pick the agent ⏸
 
@@ -263,7 +269,7 @@ Show score, tier and every check with detail and severity, exactly as the Workbe
 
 **4c. Deep review (`references/deep-review.md`)**
 
-Give D1–D13 a status (✅ / ⚠️ / ❌) with evidence meeting the criteria in that file; evidence may quote config text or SQL. Use `sql_in_prose_lines(text)` for D1 and `explain_ok(space.warehouse_id, sql)` for D3. D14 and D15 go under **Manual checks**, unscored.
+Give D1–D13 a status (✅ / ⚠️ / ❌) with evidence meeting the criteria in that file; evidence may quote config text or SQL. Use `sql_in_prose_lines(text)` for D1, and for D3 both `explain_ok(space.warehouse_id, sql)` on every example SQL and `snippets_ok(space.warehouse_id, cfg)` on every SQL snippet. D14 and D15 go under **Manual checks**, unscored.
 
 **4d. Guardrail tests (optional)** ⏸
 

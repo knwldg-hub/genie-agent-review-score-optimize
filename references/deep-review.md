@@ -6,7 +6,7 @@ These come from real Genie Agent reviews.
 |---|---|---|
 | D1 | Logic in text | `sql_in_prose_lines` finds SQL in the instructions, or the text defines metric formulas, filters, joins or name mappings that could be SQL snippets, join specs or synonyms |
 | D2 | Instruction size | ⚠️ over 2,000 characters; ❌ over about 8,000 characters or 15 sections; or persona and tone text mixed with data rules |
-| D3 | Example SQL validity | Any example SQL fails `EXPLAIN` |
+| D3 | Example SQL and snippet validity | Any example SQL fails `EXPLAIN`, or `snippets_ok` reports a snippet that fails on every data source. Read the error first: a snippet written with a table alias (for example `t.col`) can fail on its own but still work in Genie; report that as ⚠️, not ❌. In a quick scan (no warehouse), D3 is ❓ Not measured yet. |
 | D4 | Example SQL logic | Window functions partitioned on the wrong column; averaging rates or averages instead of dividing sums; comments describe a filter the SQL doesn't apply; a date window that doesn't match the stated default (for example `BETWEEN DATE_SUB(CURRENT_DATE(), 8) AND DATE_SUB(CURRENT_DATE(), 1)` is 8 days); `COUNT(*)` used as a user count; a missing `DISTINCT` on user metrics |
 | D5 | Stale facts | Instructions contain hard-coded dates, row counts or measured values that will go out of date |
 | D6 | Date windows | Defaults are relative to `CURRENT_DATE()` instead of the latest loaded date in each source |
